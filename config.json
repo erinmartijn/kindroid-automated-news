@@ -16,6 +16,6 @@
     "sports"
   ],
 
-  "locations": ["canada", "us", "world"],
+  "locations": ["canada", "local", "us", "world"],
   "kindroid_message": "📰 **Today's top news headlines:**"
 }
