@@ -8,4 +8,4 @@ dockerfilePath = "Dockerfile"
 #   "0 14 * * *"     = daily at 2 PM UTC
 #   "0 14 */2 * *"   = every 2 days at 2 PM UTC
 #   "0 14 * * 1,4"   = Mon & Thu at 2 PM UTC
-cronSchedule = "0 13 * * *"
+cronSchedule = "0 23 * * *"
