@@ -54,8 +54,8 @@ def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
     today = datetime.utcnow().strftime("%B %d, %Y")
 
     location_labels = {
-        "world": "international/world", "us": "United States",
-        "uk": "United Kingdom", "local": "local/regional",
+        "world": "international/world", "canada": "Canada", "us": "United States",
+        "uk": "United Kingdom", "eu": "European Union", "local": "local/regional",
     }
     loc_descriptions = [location_labels.get(l, l) for l in locations]
 
