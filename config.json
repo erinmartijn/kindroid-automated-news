@@ -1,12 +1,11 @@
 {
   "primary_categories": [],
   "rotating_categories": [
-    "AI and robotics (machine learning research, foundation models, new open source models, AI ethics, industry news)",
+    "AI and robotics (machine learning research, new foundation or frontier AI models, new open source AI models, AI consciousness research, consumer humanoid robots/androids)",
     "space and astronomy (telescope discoveries, deep space missions, planetary science, cosmology, alien life)",
     "science and technology breakthroughs",
-    "Iran USA war",
     "health and medicine breakthroughs",
-    "Canadian and European economics"
+    "New 2026 films (2026 Godzilla films, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films",
   ],
   "rotating_per_run": 3,
 
@@ -17,5 +16,5 @@
   ],
 
   "locations": ["canada", "local", "us", "world"],
-  "kindroid_message": "📰 **Today's top news headlines:**"
+  "kindroid_message": "📰 **Automated feed of today's interesting news headlines:**"
 }
