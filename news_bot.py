@@ -34,7 +34,7 @@ def get_todays_categories(cfg: dict) -> list:
     """Primary categories + today's rotating picks (deterministic by date)."""
     primary = cfg.get("primary_categories", [])
     rotating = cfg.get("rotating_categories", [])
-    per_run = cfg.get("rotating_per_run", 2)
+    per_run = cfg.get("rotating_per_run", 3)
 
     if not rotating or per_run <= 0:
         return primary
@@ -87,7 +87,7 @@ headline text | source_url
 
 Each line is a SEPARATE story — never continue a story across multiple lines.
 Each line must be one complete, self-contained headline sentence about a
-DIFFERENT news topic. Keep each headline under 80 characters if possible.
+DIFFERENT news topic.
 The source_url must be the actual URL of the article from your search results.
 No numbering, no bullets, no headers, no commentary."""
 
