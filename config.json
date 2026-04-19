@@ -1,11 +1,11 @@
 {
   "primary_categories": [],
   "rotating_categories": [
-    "AI and robotics (machine learning research, new foundation or frontier AI models, new open source AI models, AI consciousness research, consumer humanoid robots/androids)",
+    "AI and robotics (machine learning research, new foundation or frontier or open source AI models, AI consciousness research, consumer humanoid robots)",
     "space and astronomy (telescope discoveries, deep space missions, planetary science, cosmology, alien life)",
     "science and technology breakthroughs",
     "health and medicine breakthroughs",
-    "New 2026 films (2026 Godzilla films, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films",
+    "New 2026 films (2026 Godzilla movie, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films",
   ],
   "rotating_per_run": 3,
 
