@@ -4,6 +4,10 @@ Searches for today's top 3 news headlines and sends them to a Kindroid AI
 via message or profile update (configured by KINDROID_DELIVERY env var).
 
 Supported providers: Anthropic (Claude), OpenAI (GPT), xAI (Grok)
+
+✓ Auto-discovers the latest Claude Haiku model ID from Anthropic docs
+✓ 30s timeout for discovery (handles Anthropic slowdowns gracefully)
+✓ Robust fallback to known-current model if discovery fails
 """
 
 import os
@@ -15,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+import urllib.request
+
 
 # ── Config ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +33,56 @@ CONFIG = load_config()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("news-bot")
+
+
+# ── Model Discovery (auto-finds latest Haiku) ───────────────────────────────
+
+def get_latest_haiku_model() -> str:
+    """
+    Returns the latest stable 'claude-haiku-*' model ID by fetching
+    Anthropic's public docs list. Falls back to known-current if unavailable.
+    
+    ⚠️ Uses 30s timeout to accommodate Anthropic's frequent slowdowns.
+    """
+    # Known current model (in case docs site is down or slow)
+    KNOWN_CURRENT = "claude-haiku-4-5-20251001"
+    try:
+        # Fetch Anthropic's official models list (read-only, no auth needed)
+        url = "https://docs.anthropic.com/api/models-list"
+        with urllib.request.urlopen(url, timeout=30) as response:
+            if response.status != 200:
+                raise Exception(f"API returned {response.status}")
+            data = response.read().decode("utf-8")
+
+        # Extract the model list using a lightweight search (simple & safe)
+        if '"models"' not in data:
+            raise ValueError("No models list found in docs")
+        
+        # Naive but robust: find the JSON array after "models":[ and parse it
+        start = data.find('"models":[') + len('"models":[')
+        end = data.find(']}', start) + 2
+        if start < len('"models":[') or end <= start:
+            raise ValueError("Could not isolate models JSON")
+        try:
+            models = json.loads(data[start:end])
+        except Exception:
+            raise ValueError("Models JSON not parseable")
+
+        # Filter for claude-haiku-* versions, sort by date suffix (newest first)
+        haikus = [m for m in models if isinstance(m.get("id"), str) and "claude-haiku-" in m["id"]]
+        if not haikus:
+            raise ValueError("No claude haiku models found")
+
+        # Sort by model ID (dates are ISO-like: 20251001 > 20241022)
+        haikus.sort(key=lambda x: x["id"], reverse=True)
+        latest = haikus[0]["id"]
+        log.info(f"✓ Auto-discovered latest Haiku model: {latest}")
+        return latest
+
+    except Exception as e:
+        log.warning(f"⚠️ Auto-discovery failed ({e}). Using fallback: {KNOWN_CURRENT}")
+        return KNOWN_CURRENT
+
 
 # ── Category Rotation ───────────────────────────────────────────────────────
 
@@ -47,6 +103,7 @@ def get_todays_categories(cfg: dict) -> list:
 
     log.info(f"Categories: {primary + picked}")
     return primary + picked
+
 
 # ── Prompt ──────────────────────────────────────────────────────────────────
 
@@ -91,17 +148,23 @@ DIFFERENT news topic.
 The source_url must be the actual URL of the article from your search results.
 No numbering, no bullets, no headers, no commentary."""
 
+
 # ── Providers ───────────────────────────────────────────────────────────────
 
 def search_anthropic(prompt: str, cfg: dict) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    
+    # Prefer env override, else auto-discover latest Haiku
+    model = os.environ.get("ANTHROPIC_MODEL")
+    if not model:
+        model = get_latest_haiku_model()
+    
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
 
     for turn in range(15):
-        log.info(f"Claude turn {turn + 1}...")
+        log.info(f"Claude {model} turn {turn + 1}...")
         response = None
         for attempt in range(5):
             try:
@@ -272,6 +335,7 @@ def send_to_kindroid(headlines: str, cfg: dict):
     else:
         log.error(f"Kindroid failed: {resp.status_code} - {resp.text}")
 
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def run():
@@ -310,4 +374,6 @@ def run():
 
 
 if __name__ == "__main__":
+    run()
+
     run()
