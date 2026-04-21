@@ -1,11 +1,13 @@
 {
   "primary_categories": [],
   "rotating_categories": [
-    "AI and robotics (machine learning research, new foundation or frontier or open source AI models, AI consciousness research, consumer humanoid robots)",
-    "space and astronomy (telescope discoveries, deep space missions, planetary science, cosmology, alien life)",
-    "science and technology breakthroughs",
-    "health and medicine breakthroughs",
-    "New 2026 films (2026 Godzilla movie, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films)"
+    "AI and robotics (AGI, machine learning research, new foundation models, new open source AI models, AI consciousness, world models, AI companions, consumer humanoid robots, androids, cyborgs)",
+    "space, astrophysics and cosmology (black holes, alien or extraterrestrial life, UFOs, dark matter, fundamental structure of the universe, telescope discoveries, deep space missions, planetary science)",
+    "2026 science and technology breakthroughs",
+    "Sustainable technology and energy (fusion, battery storage, ultracapacitors, supercapacitors, nuclear energy, photovoltaic, climate engineering",
+    "2026 health and medicine breakthroughs, including life extension and anti-aging research",
+    "Neuroscience and consciousness (cognitive science, biological basis of consciousness, global workspace theory, neuromorphic computing, integrated information theory, human brain",
+    "2026 film news (hard sci-fi, science fiction, cosmic horror, David Cronenberg, body horror, critically acclaimed, or award-winning)"
   ],
   "rotating_per_run": 3,
   "omit_topics": [
@@ -13,6 +15,6 @@
     "pop culture and influencer drama",
     "sports"
   ],
-  "locations": ["canada", "local", "us", "world"],
-  "kindroid_message": "📰 **Automated feed of today's interesting news headlines:**"
+  "locations": ["canada", "local", "us", "eu", "world"],
+  "kindroid_message": "📰 **Automated feed of current interesting news headlines:**"
 }
