@@ -1,6 +1,6 @@
 """
 News Headlines Bot
-Searches for today's top 3 news headlines and sends them to a Kindroid AI
+Searches for today's top 3 news headlines and sends them and a summary to a Kindroid AI
 via message or profile update (configured by KINDROID_DELIVERY env var).
 
 Supported providers: Anthropic (Claude), OpenAI (GPT), xAI (Grok)
@@ -86,17 +86,17 @@ def get_latest_haiku_model() -> str:
 
 # ── Category Rotation ───────────────────────────────────────────────────────
 
-def get_todays_categories(cfg: dict) -> list:
-    """Primary categories + today's rotating picks (deterministic by date)."""
+def get_yesterdays_categories(cfg: dict) -> list:
+    """Primary categories + yesterday's rotating picks (deterministic by date)."""
     primary = cfg.get("primary_categories", [])
     rotating = cfg.get("rotating_categories", [])
-    per_run = cfg.get("rotating_per_run", 3)
+    per_run = cfg.get("rotating_per_run", 2)
 
     if not rotating or per_run <= 0:
         return primary
 
-    today_str = datetime.utcnow().strftime("%Y-%m-%d")
-    day_hash = int(hashlib.md5(today_str.encode()).hexdigest(), 16)
+    yesterday_str = datetime.utcnow().strftime("%Y-%m-%d")
+    day_hash = int(hashlib.md5(yesterday_str.encode()).hexdigest(), 16)
     n = len(rotating)
     start = day_hash % n
     picked = [rotating[(start + i) % n] for i in range(per_run)]
@@ -132,21 +132,23 @@ Geographic focus: {', '.join(loc_descriptions)}
 {omit_block}
 IMPORTANT RULES:
 - Do NOT narrate your process. Do NOT say things like "I'll search for news"
-  or "Let me look up headlines". Just perform your search silently and then
-  output ONLY the final headlines.
-- Every headline MUST come directly from a real article you found in search
-  results. NEVER invent, speculate, or extrapolate a headline.
+  or "Let me look up articles". Just perform your search silently and then
+  output ONLY the final formatted results.
+- Every headline and summary MUST come directly from a real article you found
+  in search results. NEVER invent, speculate, or extrapolate.
 - If a search returns no relevant results for a category, skip that category
-  rather than fabricating a headline.
+  rather than fabricating a story.
 
-Return EXACTLY 3 lines formatted as:
-headline text | source_url
+Return EXACTLY 3 stories using this two-line format, with a blank line between each story:
 
-Each line is a SEPARATE story — never continue a story across multiple lines.
-Each line must be one complete, self-contained headline sentence about a
-DIFFERENT news topic.
-The source_url must be the actual URL of the article from your search results.
-No numbering, no bullets, no headers, no commentary."""
+Line 1: The article headline | article URL (the URL must appear ONLY after the |, nowhere else)
+Line 2: A 1-2 sentence summary of the article in your own words.
+
+Example:
+Scientists discover new exoplanet in habitable zone | https://example.com/article
+Researchers at MIT announced the discovery of a rocky exoplanet orbiting within the habitable zone of a nearby star, raising hopes for signs of liquid water.
+
+No numbering, no bullets, no headers, no commentary outside this format."""
 
 
 # ── Providers ───────────────────────────────────────────────────────────────
@@ -262,17 +264,35 @@ PROVIDERS = {"anthropic": search_anthropic, "openai": search_openai, "grok": sea
 # ── Verification ───────────────────────────────────────────────────────────
 
 def parse_headlines(raw: str) -> list[dict]:
-    """Parse 'headline | url' lines into structured dicts."""
+    """Parse 'headline | url' + summary lines into structured dicts.
+
+    Handles both compact format (summary immediately after headline) and
+    spaced format (blank line between headline and summary).
+    """
     results = []
-    for line in raw.strip().splitlines():
-        line = line.strip()
-        if not line:
-            continue
+    lines = [l.strip() for l in raw.strip().splitlines()]
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         if "|" in line:
             headline, url = line.rsplit("|", 1)
-            results.append({"headline": headline.strip(), "url": url.strip()})
+            # Advance to the next non-empty line for the summary
+            j = i + 1
+            while j < len(lines) and not lines[j]:
+                j += 1
+            summary = ""
+            if j < len(lines) and "|" not in lines[j]:
+                summary = lines[j]
+                i = j + 1
+            else:
+                i += 1
+            results.append({
+                "headline": headline.strip(),
+                "url": url.strip(),
+                "summary": summary.strip(),
+            })
         else:
-            results.append({"headline": line, "url": None})
+            i += 1
     return results
 
 
@@ -341,7 +361,7 @@ def send_to_kindroid(headlines: str, cfg: dict):
 def run():
     log.info("Fetching top 3 headlines...")
     cfg = CONFIG
-    categories = get_todays_categories(cfg)
+    categories = get_yesterdays_categories(cfg)
 
     provider = os.environ.get("NEWS_PROVIDER", cfg.get("provider", "anthropic")).lower()
     search_fn = PROVIDERS.get(provider)
