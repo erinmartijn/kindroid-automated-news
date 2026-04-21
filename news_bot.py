@@ -1,6 +1,6 @@
 """
 News Headlines Bot
-Searches for today's top 3 news headlines and sends them and a summary to a Kindroid AI
+Searches for yesterday's top 3 news headlines and sends them and a summary to a Kindroid AI
 via message or profile update (configured by KINDROID_DELIVERY env var).
 
 Supported providers: Anthropic (Claude), OpenAI (GPT), xAI (Grok)
