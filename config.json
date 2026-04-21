@@ -5,16 +5,14 @@
     "space and astronomy (telescope discoveries, deep space missions, planetary science, cosmology, alien life)",
     "science and technology breakthroughs",
     "health and medicine breakthroughs",
-    "New 2026 films (2026 Godzilla movie, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films",
+    "New 2026 films (2026 Godzilla movie, 2026 hard sci-fi films, 2026 highly acclaimed films, 2026 award-winning films)"
   ],
   "rotating_per_run": 3,
-
   "omit_topics": [
     "celebrities and entertainment media",
     "pop culture and influencer drama",
     "sports"
   ],
-
   "locations": ["canada", "local", "us", "world"],
   "kindroid_message": "📰 **Automated feed of today's interesting news headlines:**"
 }
