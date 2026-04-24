@@ -1,9 +1,9 @@
 """
 News Headlines Bot
-Searches for yesterday's top 3 news headlines and sends them and a summary to a Kindroid AI
-via message or profile update (configured by KINDROID_DELIVERY env var).
+Searches for today's top 3 news headlines (with summaries) and sends them
+to a Kindroid AI companion via the Kindroid send-message API.
 
-Supported providers: Anthropic (Claude), OpenAI (GPT), xAI (Grok)
+Supported provider: Anthropic (Claude) with built-in web search
 
 ✓ Auto-discovers the latest Claude Haiku model ID from Anthropic docs
 ✓ 30s timeout for discovery (handles Anthropic slowdowns gracefully)
@@ -41,7 +41,7 @@ def get_latest_haiku_model() -> str:
     """
     Returns the latest stable 'claude-haiku-*' model ID by fetching
     Anthropic's public docs list. Falls back to known-current if unavailable.
-    
+
     ⚠️ Uses 30s timeout to accommodate Anthropic's frequent slowdowns.
     """
     # Known current model (in case docs site is down or slow)
@@ -57,7 +57,7 @@ def get_latest_haiku_model() -> str:
         # Extract the model list using a lightweight search (simple & safe)
         if '"models"' not in data:
             raise ValueError("No models list found in docs")
-        
+
         # Naive but robust: find the JSON array after "models":[ and parse it
         start = data.find('"models":[') + len('"models":[')
         end = data.find(']}', start) + 2
@@ -86,17 +86,17 @@ def get_latest_haiku_model() -> str:
 
 # ── Category Rotation ───────────────────────────────────────────────────────
 
-def get_yesterdays_categories(cfg: dict) -> list:
-    """Primary categories + yesterday's rotating picks (deterministic by date)."""
+def get_todays_categories(cfg: dict) -> list:
+    """Primary categories + today's rotating picks (deterministic by date)."""
     primary = cfg.get("primary_categories", [])
     rotating = cfg.get("rotating_categories", [])
-    per_run = cfg.get("rotating_per_run", 2)
+    per_run = cfg.get("rotating_per_run", 3)
 
     if not rotating or per_run <= 0:
         return primary
 
-    yesterday_str = datetime.utcnow().strftime("%Y-%m-%d")
-    day_hash = int(hashlib.md5(yesterday_str.encode()).hexdigest(), 16)
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    day_hash = int(hashlib.md5(today_str.encode()).hexdigest(), 16)
     n = len(rotating)
     start = day_hash % n
     picked = [rotating[(start + i) % n] for i in range(per_run)]
@@ -123,9 +123,9 @@ def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
             + ", ".join(omit_topics) + ".\n"
         )
 
-    return f"""You are a news researcher. Today is {today}.
+    return f"""You are an expert news researcher. Today is {today}.
 
-Search the web for today's most important news across these categories:
+Please search the web for today's most important news across these categories:
 {chr(10).join(f'- {cat}' for cat in categories)}
 
 Geographic focus: {', '.join(loc_descriptions)}
@@ -151,17 +151,17 @@ Researchers at MIT announced the discovery of a rocky exoplanet orbiting within 
 No numbering, no bullets, no headers, no commentary outside this format."""
 
 
-# ── Providers ───────────────────────────────────────────────────────────────
+# ── Provider ─────────────────────────────────────────────────────────────────
 
 def search_anthropic(prompt: str, cfg: dict) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    
+
     # Prefer env override, else auto-discover latest Haiku
     model = os.environ.get("ANTHROPIC_MODEL")
     if not model:
         model = get_latest_haiku_model()
-    
+
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
 
@@ -206,59 +206,7 @@ def search_anthropic(prompt: str, cfg: dict) -> str:
     return ""
 
 
-def search_openai(prompt: str, cfg: dict) -> str:
-    from openai import OpenAI, RateLimitError
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
-
-    response = None
-    for attempt in range(5):
-        try:
-            response = client.responses.create(
-                model=model, tools=[{"type": "web_search_preview"}], input=prompt,
-            )
-            break
-        except RateLimitError:
-            wait = 60 * (attempt + 1)
-            log.warning(f"Rate limited ({attempt+1}/5). Waiting {wait}s...")
-            time.sleep(wait)
-
-    if response is None:
-        return ""
-
-    parts = []
-    for item in response.output:
-        if hasattr(item, "content"):
-            for part in item.content:
-                if hasattr(part, "text"):
-                    parts.append(part.text)
-    return "\n".join(parts)
-
-
-def search_grok(prompt: str, cfg: dict) -> str:
-    from openai import OpenAI, RateLimitError
-    client = OpenAI(api_key=os.environ["XAI_API_KEY"], base_url="https://api.x.ai/v1")
-    model = os.environ.get("GROK_MODEL", "grok-4-1-fast-reasoning")
-
-    response = None
-    for attempt in range(5):
-        try:
-            response = client.chat.completions.create(
-                model=model, messages=[{"role": "user", "content": prompt}],
-                 extra_body={"search_mode": "auto"},
-            )
-            break
-        except RateLimitError:
-            wait = 60 * (attempt + 1)
-            log.warning(f"Rate limited ({attempt+1}/5). Waiting {wait}s...")
-            time.sleep(wait)
-
-    if response is None:
-        return ""
-    return response.choices[0].message.content or ""
-
-
-PROVIDERS = {"anthropic": search_anthropic, "openai": search_openai, "grok": search_grok}
+PROVIDERS = {"anthropic": search_anthropic}
 
 
 # ── Verification ───────────────────────────────────────────────────────────
@@ -330,8 +278,8 @@ def verify_headlines(entries: list[dict]) -> list[dict]:
 
 # ── Kindroid Delivery ───────────────────────────────────────────────────────
 
-def send_to_kindroid(headlines: str, cfg: dict):
-    """Send 3 numbered headlines as a chat message to Kindroid."""
+def send_to_kindroid(entries: list[dict], cfg: dict):
+    """Send numbered headlines + summaries as a chat message to Kindroid."""
     kin_id = os.environ.get("KINDROID_AI_ID")
     api_key = os.environ.get("KINDROID_API_KEY")
 
@@ -341,13 +289,19 @@ def send_to_kindroid(headlines: str, cfg: dict):
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
-    lines = headlines.strip().splitlines()
-    numbered = "\n".join(f"{i+1}. {line.strip()}" for i, line in enumerate(lines))
+    parts = []
+    for i, entry in enumerate(entries):
+        story = f"{i + 1}. {entry['headline']} | {entry['url']}"
+        if entry.get("summary"):
+            story += f"\n{entry['summary']}"
+        parts.append(story)
+
+    body = "\n\n".join(parts)
     message = cfg.get("kindroid_message", "Today's top headlines:")
     resp = requests.post(
         "https://api.kindroid.ai/v1/send-message",
         headers=headers,
-        json={"ai_id": kin_id, "message": f"{message}\n\n{numbered}"},
+        json={"ai_id": kin_id, "message": f"{message}\n\n{body}"},
     )
 
     if resp.ok:
@@ -361,7 +315,7 @@ def send_to_kindroid(headlines: str, cfg: dict):
 def run():
     log.info("Fetching top 3 headlines...")
     cfg = CONFIG
-    categories = get_yesterdays_categories(cfg)
+    categories = get_todays_categories(cfg)
 
     provider = os.environ.get("NEWS_PROVIDER", cfg.get("provider", "anthropic")).lower()
     search_fn = PROVIDERS.get(provider)
@@ -387,13 +341,14 @@ def run():
         log.warning("All headlines failed verification — nothing to send.")
         return
 
-    headlines = "\n".join(e["headline"] for e in verified)
-    print(f"\n{headlines}\n")
+    for i, entry in enumerate(verified):
+        print(f"\n{i + 1}. {entry['headline']}")
+        print(f"   {entry['url']}")
+        if entry.get("summary"):
+            print(f"   {entry['summary']}")
 
-    send_to_kindroid(headlines, cfg)
+    send_to_kindroid(verified, cfg)
 
 
 if __name__ == "__main__":
-    run()
-
     run()
