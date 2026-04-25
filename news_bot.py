@@ -139,16 +139,16 @@ IMPORTANT RULES:
 - If a search returns no relevant results for a category, skip that category
   rather than fabricating a story.
 
-Return EXACTLY 3 stories using this two-line format, each heading bolded, with a blank line between each story:
+Return EXACTLY 3 stories using this two-line format, with a blank line between each story:
 
-Line 1: The article headline
-Line 2: A 1-2 sentence summary of the article in your own words.
+Line 1: The article headline in bold markdown (e.g. **Headline text here**)
+Line 2: A 1-2 sentence summary of the article in your own words, not bold.
 
 Example:
-Scientists discover new exoplanet in habitable zone
+**Scientists discover new exoplanet in habitable zone**
 Researchers at MIT announced the discovery of a rocky exoplanet orbiting within the habitable zone of a nearby star, raising hopes for signs of liquid water.
 
-No numbering, no bullets, no headers, no commentary outside this format."""
+No numbering, no bullets, no headers, no URLs, no commentary outside this format."""
 
 
 # ── Provider ─────────────────────────────────────────────────────────────────
@@ -209,71 +209,28 @@ def search_anthropic(prompt: str, cfg: dict) -> str:
 PROVIDERS = {"anthropic": search_anthropic}
 
 
-# ── Verification ───────────────────────────────────────────────────────────
+# ── Parsing ────────────────────────────────────────────────────────────────
 
 def parse_headlines(raw: str) -> list[dict]:
-    """Parse headline + summary lines into structured dicts.
+    """Parse bold headline + summary line pairs into structured dicts.
 
-    Handles both compact format (summary immediately after headline) and
-    spaced format (blank line between headline and summary).
+    Expects alternating non-blank lines: headline, summary, headline, summary...
+    Blank lines between stories are ignored.
     """
     results = []
-    lines = [l.strip() for l in raw.strip().splitlines()]
+    # Collect all non-empty lines in order
+    lines = [l.strip() for l in raw.strip().splitlines() if l.strip()]
+    # Step through in pairs: headline, then summary
     i = 0
-    while i < len(lines):
-        line = lines[i]
-        if "|" in line:
-            headline, url = line.rsplit("|", 1)
-            # Advance to the next non-empty line for the summary
-            j = i + 1
-            while j < len(lines) and not lines[j]:
-                j += 1
-            summary = ""
-            if j < len(lines) and "|" not in lines[j]:
-                summary = lines[j]
-                i = j + 1
-            else:
-                i += 1
-            results.append({
-                "headline": headline.strip(),
-                "url": url.strip(),
-                "summary": summary.strip(),
-            })
-        else:
-            i += 1
+    while i < len(lines) - 1:
+        headline = lines[i]
+        summary = lines[i + 1]
+        results.append({
+            "headline": headline,
+            "summary": summary,
+        })
+        i += 2
     return results
-
-
-def verify_headline(entry: dict, timeout: int = 10) -> bool:
-    """Check that the source URL exists and responds."""
-    url = entry.get("url")
-    if not url or not url.startswith("http"):
-        log.warning(f"No valid URL for: {entry['headline']}")
-        return False
-    try:
-        resp = requests.head(url, allow_redirects=True, timeout=timeout,
-                             headers={"User-Agent": "Mozilla/5.0 NewsBot/1.0"})
-        if resp.status_code < 400:
-            return True
-        # Some sites block HEAD, try GET
-        resp = requests.get(url, allow_redirects=True, timeout=timeout, stream=True,
-                            headers={"User-Agent": "Mozilla/5.0 NewsBot/1.0"})
-        return resp.status_code < 400
-    except requests.RequestException as e:
-        log.warning(f"URL check failed for {url}: {e}")
-        return False
-
-
-def verify_headlines(entries: list[dict]) -> list[dict]:
-    """Return only headlines with reachable source URLs."""
-    verified = []
-    for entry in entries:
-        if verify_headline(entry):
-            log.info(f"✓ Verified: {entry['headline']}")
-            verified.append(entry)
-        else:
-            log.warning(f"✗ Dropped (unverifiable): {entry['headline']}")
-    return verified
 
 
 # ── Kindroid Delivery ───────────────────────────────────────────────────────
@@ -291,7 +248,7 @@ def send_to_kindroid(entries: list[dict], cfg: dict):
 
     parts = []
     for i, entry in enumerate(entries):
-        story = f"{i + 1}. {entry['headline']} | {entry['url']}"
+        story = f"{i + 1}. {entry['headline']}"
         if entry.get("summary"):
             story += f"\n{entry['summary']}"
         parts.append(story)
@@ -335,19 +292,17 @@ def run():
         return
 
     entries = parse_headlines(raw)[:3]
-    verified = verify_headlines(entries)
 
-    if not verified:
-        log.warning("All headlines failed verification — nothing to send.")
+    if not entries:
+        log.warning("No headlines parsed — nothing to send.")
         return
 
-    for i, entry in enumerate(verified):
+    for i, entry in enumerate(entries):
         print(f"\n{i + 1}. {entry['headline']}")
-        print(f"   {entry['url']}")
         if entry.get("summary"):
             print(f"   {entry['summary']}")
 
-    send_to_kindroid(verified, cfg)
+    send_to_kindroid(entries, cfg)
 
 
 if __name__ == "__main__":
