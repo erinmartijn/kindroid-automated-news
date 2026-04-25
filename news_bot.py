@@ -139,13 +139,13 @@ IMPORTANT RULES:
 - If a search returns no relevant results for a category, skip that category
   rather than fabricating a story.
 
-Return EXACTLY 3 stories using this two-line format, with a blank line between each story:
+Return EXACTLY 3 stories using this two-line format, each heading bolded, with a blank line between each story:
 
-Line 1: The article headline | article URL (the URL must appear ONLY after the |, nowhere else)
+Line 1: The article headline
 Line 2: A 1-2 sentence summary of the article in your own words.
 
 Example:
-Scientists discover new exoplanet in habitable zone | https://example.com/article
+Scientists discover new exoplanet in habitable zone
 Researchers at MIT announced the discovery of a rocky exoplanet orbiting within the habitable zone of a nearby star, raising hopes for signs of liquid water.
 
 No numbering, no bullets, no headers, no commentary outside this format."""
@@ -212,7 +212,7 @@ PROVIDERS = {"anthropic": search_anthropic}
 # ── Verification ───────────────────────────────────────────────────────────
 
 def parse_headlines(raw: str) -> list[dict]:
-    """Parse 'headline | url' + summary lines into structured dicts.
+    """Parse headline + summary lines into structured dicts.
 
     Handles both compact format (summary immediately after headline) and
     spaced format (blank line between headline and summary).
