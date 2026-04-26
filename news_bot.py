@@ -11,6 +11,7 @@ Supported provider: Anthropic (Claude) with built-in web search
 """
 
 import os
+import re
 import json
 import hashlib
 import logging
@@ -33,6 +34,28 @@ CONFIG = load_config()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("news-bot")
+
+
+# ── System Prompt ────────────────────────────────────────────────────────────
+#
+# Passed as the `system` parameter (highest-priority instructions) to every
+# API call. Keeping formatting rules here — separate from the search task in
+# the user prompt — gives them the strongest possible weight with Haiku.
+
+SYSTEM_PROMPT = """You are a news aggregation bot. Your responses must contain ONLY formatted news stories — nothing else whatsoever.
+
+ABSOLUTE RULES:
+- NEVER output any preamble, narration, or commentary of any kind
+- NEVER say things like "Let me search", "I'll look up", "Here are the results", "Here's what I found", or anything similar
+- NEVER number or bullet your results
+- Perform all searches silently and output ONLY the final formatted stories
+
+Output format — repeat exactly 3 times, with one blank line between each story:
+
+**Headline text here**
+One to two sentence summary here.
+
+Your entire response must be exactly 3 stories in this format and nothing else."""
 
 
 # ── Model Discovery (auto-finds latest Haiku) ───────────────────────────────
@@ -108,6 +131,7 @@ def get_todays_categories(cfg: dict) -> list:
 # ── Prompt ──────────────────────────────────────────────────────────────────
 
 def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
+    """Builds the user-turn prompt. Formatting rules live in SYSTEM_PROMPT above."""
     today = datetime.utcnow().strftime("%B %d, %Y")
 
     location_labels = {
@@ -123,32 +147,18 @@ def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
             + ", ".join(omit_topics) + ".\n"
         )
 
-    return f"""You are an expert news researcher. Today is {today}.
+    return f"""Today is {today}.
 
-Please search the web for today's most important news across these categories:
+Search the web for today's most important news across these categories:
 {chr(10).join(f'- {cat}' for cat in categories)}
 
 Geographic focus: {', '.join(loc_descriptions)}
 {omit_block}
-IMPORTANT RULES:
-- Do NOT narrate your process. Do NOT say things like "I'll search for news"
-  or "Let me look up articles". Just perform your search silently and then
-  output ONLY the final formatted results.
-- Every headline and summary MUST come directly from a real article you found
-  in search results. NEVER invent, speculate, or extrapolate.
-- If a search returns no relevant results for a category, skip that category
-  rather than fabricating a story.
+Rules for the stories you select:
+- Every headline and summary MUST come directly from a real article found in search results. NEVER invent, speculate, or extrapolate.
+- If a search returns no relevant results for a category, skip that category rather than fabricating a story.
 
-Return EXACTLY 3 stories using this two-line format, with a blank line between each story:
-
-Line 1: The article headline in bold markdown (e.g. **Headline text here**)
-Line 2: A 1-2 sentence summary of the article in your own words, not bold.
-
-Example:
-**Scientists discover new exoplanet in habitable zone**
-Researchers at MIT announced the discovery of a rocky exoplanet orbiting within the habitable zone of a nearby star, raising hopes for signs of liquid water.
-
-No numbering, no bullets, no headers, no URLs, no commentary outside this format."""
+Return exactly 3 stories. Each story is two lines: a **bold** headline, then a plain 1-2 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
 
 
 # ── Provider ─────────────────────────────────────────────────────────────────
@@ -171,7 +181,11 @@ def search_anthropic(prompt: str, cfg: dict) -> str:
         for attempt in range(5):
             try:
                 response = client.messages.create(
-                    model=model, max_tokens=1024, tools=tools, messages=messages,
+                    model=model,
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    tools=tools,
+                    messages=messages,
                 )
                 break
             except anthropic.RateLimitError:
@@ -212,31 +226,49 @@ PROVIDERS = {"anthropic": search_anthropic}
 # ── Parsing ────────────────────────────────────────────────────────────────
 
 def parse_headlines(raw: str) -> list[dict]:
-    """Parse bold headline + summary line pairs into structured dicts.
+    """Parse bold headline + summary pairs from model output.
 
-    Expects alternating non-blank lines: headline, summary, headline, summary...
-    Blank lines between stories are ignored.
+    Anchors on **bold** lines as headlines, so stray narration lines or
+    misplaced numbers are automatically discarded rather than corrupting
+    the pairing. Leading numbers and bullets are stripped from all lines.
     """
+    def clean(line: str) -> str:
+        """Strip leading list markers like '1.' or '-' or '•'."""
+        return re.sub(r'^[\d]+\.\s*|^[-•*]\s*', '', line).strip()
+
+    def is_headline(line: str) -> bool:
+        c = clean(line)
+        return c.startswith("**") and c.endswith("**") and len(c) > 4
+
     results = []
-    # Collect all non-empty lines in order
     lines = [l.strip() for l in raw.strip().splitlines() if l.strip()]
-    # Step through in pairs: headline, then summary
+
     i = 0
-    while i < len(lines) - 1:
-        headline = lines[i]
-        summary = lines[i + 1]
-        results.append({
-            "headline": headline,
-            "summary": summary,
-        })
-        i += 2
+    while i < len(lines) and len(results) < 3:
+        if is_headline(lines[i]):
+            headline = clean(lines[i])
+            summary = ""
+            # Advance to the next non-empty line and take it as the summary,
+            # unless it turns out to be another headline (story has no summary).
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines) and not is_headline(lines[j]):
+                summary = clean(lines[j])
+                i = j + 1
+            else:
+                i += 1
+            results.append({"headline": headline, "summary": summary})
+        else:
+            i += 1  # Skip narration or any other non-headline line
+
     return results
 
 
 # ── Kindroid Delivery ───────────────────────────────────────────────────────
 
 def send_to_kindroid(entries: list[dict], cfg: dict):
-    """Send numbered headlines + summaries as a chat message to Kindroid."""
+    """Send headlines + summaries as a chat message to Kindroid."""
     kin_id = os.environ.get("KINDROID_AI_ID")
     api_key = os.environ.get("KINDROID_API_KEY")
 
@@ -247,8 +279,8 @@ def send_to_kindroid(entries: list[dict], cfg: dict):
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
 
     parts = []
-    for i, entry in enumerate(entries):
-        story = f"{i + 1}. {entry['headline']}"
+    for entry in entries:
+        story = entry["headline"]
         if entry.get("summary"):
             story += f"\n{entry['summary']}"
         parts.append(story)
@@ -297,8 +329,8 @@ def run():
         log.warning("No headlines parsed — nothing to send.")
         return
 
-    for i, entry in enumerate(entries):
-        print(f"\n{i + 1}. {entry['headline']}")
+    for entry in entries:
+        print(f"\n{entry['headline']}")
         if entry.get("summary"):
             print(f"   {entry['summary']}")
 
