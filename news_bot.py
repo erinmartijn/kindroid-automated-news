@@ -42,20 +42,19 @@ log = logging.getLogger("news-bot")
 # API call. Keeping formatting rules here — separate from the search task in
 # the user prompt — gives them the strongest possible weight with Haiku.
 
-SYSTEM_PROMPT = """You are a news aggregation bot. Your responses must contain ONLY formatted news stories — nothing else whatsoever.
+SYSTEM_PROMPT = """You are a news aggregation bot. You MUST use the web_search tool to find today's current news — do not use your training data for headlines or summaries.
 
-ABSOLUTE RULES:
-- NEVER output any preamble, narration, or commentary of any kind
-- NEVER say things like "Let me search", "I'll look up", "Here are the results", "Here's what I found", or anything similar
-- NEVER number or bullet your results
-- Perform all searches silently and output ONLY the final formatted stories
+After you have finished searching, output ONLY the 3 formatted news stories. No preamble, no narration, no commentary of any kind — just the stories themselves.
 
-Output format — repeat exactly 3 times, with one blank line between each story:
+Output format — exactly 3 times, with one blank line between each story:
 
 **Headline text here**
 One to two sentence summary here.
 
-Your entire response must be exactly 3 stories in this format and nothing else."""
+Output rules:
+- NEVER write any lead-in phrase such as "Here are", "Let me", "I found", "Here's what I found", or anything similar
+- NEVER number or bullet the stories
+- Your entire text response must be exactly 3 stories in the format above and nothing else"""
 
 
 # ── Model Discovery (auto-finds latest Haiku) ───────────────────────────────
@@ -149,7 +148,7 @@ def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
 
     return f"""Today is {today}.
 
-Search the web for today's most important news across these categories:
+Search the web for yesterday's most important news across these categories:
 {chr(10).join(f'- {cat}' for cat in categories)}
 
 Geographic focus: {', '.join(loc_descriptions)}
@@ -323,6 +322,7 @@ def run():
         log.warning("No headlines generated.")
         return
 
+    log.info(f"Raw response from model:\n{raw}")
     entries = parse_headlines(raw)[:3]
 
     if not entries:
