@@ -1,13 +1,13 @@
 """
 News Headlines Bot
-Searches for today's top 3 news headlines (with summaries) and sends them
+Searches for yesterday's top 3 news headlines (with summaries) and sends them
 to a Kindroid AI companion via the Kindroid send-message API.
 
 Supported provider: Anthropic (Claude) with built-in web search
 
-✓ Auto-discovers the latest Claude Haiku model ID from Anthropic docs
-✓ 30s timeout for discovery (handles Anthropic slowdowns gracefully)
-✓ Robust fallback to known-current model if discovery fails
+ℹ️  Model is set via the ANTHROPIC_MODEL env var, or the HAIKU_MODEL constant
+    below. Update HAIKU_MODEL manually when Anthropic releases a new Haiku version
+    (typically once or twice a year).
 """
 
 import os
@@ -20,7 +20,6 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-import urllib.request
 
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -42,68 +41,28 @@ log = logging.getLogger("news-bot")
 # API call. Keeping formatting rules here — separate from the search task in
 # the user prompt — gives them the strongest possible weight with Haiku.
 
-SYSTEM_PROMPT = """You are a news aggregation bot. You MUST use the web_search tool to find today's current news — do not use your training data for headlines or summaries.
+SYSTEM_PROMPT = """You are a news aggregation bot. You MUST use the web_search tool to find current news articles — do not use your training data for headlines or summaries.
 
-After you have finished searching, output ONLY the 3 formatted news stories. No preamble, no narration, no commentary of any kind — just the stories themselves.
+When you have finished all your searches, your text response must contain ONLY the 3 formatted news stories — absolutely nothing else. Do not write anything before or after the stories.
 
-Output format — exactly 3 times, with one blank line between each story:
+Output format — exactly 3 stories, with one blank line between each:
 
 **Headline text here**
 One to two sentence summary here.
 
 Output rules:
-- NEVER write any lead-in phrase such as "Here are", "Let me", "I found", "Here's what I found", or anything similar
-- NEVER number or bullet the stories
-- Your entire text response must be exactly 3 stories in the format above and nothing else"""
+- Do NOT write any preamble, transition, or closing remark of any kind
+- Do NOT write phrases like "Here are", "Let me", "I found", "Based on my research", "Here's what I found", or anything similar before or between stories
+- Do NOT number or bullet the stories
+- Your entire text response must be exactly 3 stories in the above format and nothing else"""
 
 
-# ── Model Discovery (auto-finds latest Haiku) ───────────────────────────────
+# ── Model ───────────────────────────────────────────────────────────────────
+#
+# Update this string when Anthropic releases a new Haiku version.
+# Can be overridden at runtime via the ANTHROPIC_MODEL environment variable.
 
-def get_latest_haiku_model() -> str:
-    """
-    Returns the latest stable 'claude-haiku-*' model ID by fetching
-    Anthropic's public docs list. Falls back to known-current if unavailable.
-
-    ⚠️ Uses 30s timeout to accommodate Anthropic's frequent slowdowns.
-    """
-    # Known current model (in case docs site is down or slow)
-    KNOWN_CURRENT = "claude-haiku-4-5-20251001"
-    try:
-        # Fetch Anthropic's official models list (read-only, no auth needed)
-        url = "https://docs.anthropic.com/api/models-list"
-        with urllib.request.urlopen(url, timeout=30) as response:
-            if response.status != 200:
-                raise Exception(f"API returned {response.status}")
-            data = response.read().decode("utf-8")
-
-        # Extract the model list using a lightweight search (simple & safe)
-        if '"models"' not in data:
-            raise ValueError("No models list found in docs")
-
-        # Naive but robust: find the JSON array after "models":[ and parse it
-        start = data.find('"models":[') + len('"models":[')
-        end = data.find(']}', start) + 2
-        if start < len('"models":[') or end <= start:
-            raise ValueError("Could not isolate models JSON")
-        try:
-            models = json.loads(data[start:end])
-        except Exception:
-            raise ValueError("Models JSON not parseable")
-
-        # Filter for claude-haiku-* versions, sort by date suffix (newest first)
-        haikus = [m for m in models if isinstance(m.get("id"), str) and "claude-haiku-" in m["id"]]
-        if not haikus:
-            raise ValueError("No claude haiku models found")
-
-        # Sort by model ID (dates are ISO-like: 20251001 > 20241022)
-        haikus.sort(key=lambda x: x["id"], reverse=True)
-        latest = haikus[0]["id"]
-        log.info(f"✓ Auto-discovered latest Haiku model: {latest}")
-        return latest
-
-    except Exception as e:
-        log.warning(f"⚠️ Auto-discovery failed ({e}). Using fallback: {KNOWN_CURRENT}")
-        return KNOWN_CURRENT
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 
 # ── Category Rotation ───────────────────────────────────────────────────────
@@ -166,10 +125,8 @@ def search_anthropic(prompt: str, cfg: dict) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    # Prefer env override, else auto-discover latest Haiku
-    model = os.environ.get("ANTHROPIC_MODEL")
-    if not model:
-        model = get_latest_haiku_model()
+    # Prefer env override, else use the HAIKU_MODEL constant defined above
+    model = os.environ.get("ANTHROPIC_MODEL") or HAIKU_MODEL
 
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": "web_search_20250305", "name": "web_search"}]
@@ -233,7 +190,7 @@ def parse_headlines(raw: str) -> list[dict]:
     """
     def clean(line: str) -> str:
         """Strip leading list markers like '1.' or '-' or '•'."""
-        return re.sub(r'^[\d]+\.\s*|^[-•*]\s*', '', line).strip()
+        return re.sub(r'^[\d]+\.\s*|^[-•]\s*|^\*\s+', '', line).strip()
 
     def is_headline(line: str) -> bool:
         c = clean(line)
