@@ -54,7 +54,8 @@ Output rules:
 - Do NOT write any preamble, transition, or closing remark of any kind
 - Do NOT write phrases like "Here are", "Let me", "I found", "Based on my research", "Here's what I found", or anything similar before or between stories
 - Do NOT number or bullet the stories
-- Your entire text response must be exactly 3 stories in the above format and nothing else"""
+- Your entire text response must be exactly 3 stories in the above format and nothing else
+- Just perform your search silently and then output ONLY the final formatted results."""
 
 
 # ── Model ───────────────────────────────────────────────────────────────────
