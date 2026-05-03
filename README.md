@@ -13,10 +13,14 @@ Supports **Anthropic (Claude)** as the provider. No news API key needed — the 
 2. **railway** enter environment variables into railway:
 
 NEWS_PROVIDER="..." <-- anthropic
-*PROVIDER*_API_KEY="sk..." <--- replace *provider* w/ anthropic, openai, or xai
-KINDROID_AI_ID="..."
-KINDROID_API_KEY="kn..."
-SCHEDULE_CRON=" 0 11 * * * " <-- daily @ 7:00PM EST
+
+ANTHROPIC_API_KEY="sk..." <--- your paid anthropic API key from console.anthropic.com
+
+KINDROID_AI_ID="..." from your Kindroid account
+
+KINDROID_API_KEY="kn..." from your Kindroid account
+
+SCHEDULE_CRON=" 0 23 * * * " <-- daily @ 7:00PM EST. It uses UTC time.
 
 3. **default models:** claude-haiku-4-5-20251001
 
