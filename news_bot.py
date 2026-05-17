@@ -115,7 +115,7 @@ Geographic focus: {', '.join(loc_descriptions)}
 {omit_block}
 Rules for the stories you select:
 - Every headline and summary MUST come directly from a real article found in search results. NEVER invent, speculate, or extrapolate.
-- If a search returns no relevant results for a category, skip that category rather than fabricating a story.
+- If a search returns no relevant results for a category, try searching for recent relevant stories from the last 7 days. If there are still no results, skip that category rather than fabricating a story.
 
 Return exactly 3 stories. Each story is two lines: a **bold** headline, then a plain 1-2 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
 
