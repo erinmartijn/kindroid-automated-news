@@ -54,8 +54,8 @@ Output rules:
 - Do NOT write any preamble, transition, or closing remark of any kind
 - Do NOT write phrases like "Here are", "Let me", "I found", "Based on my research", "Here's what I found", or anything similar before or between stories
 - Do NOT number or bullet the stories
-- Your entire text response must be exactly 3 stories in the above format and nothing else
-- Just perform your search silently and then output ONLY the final formatted results."""
+- Your entire text response must be exactly 3 stories in exactly the above format and nothing else
+- Just perform your search silently and then output ONLY the final correctly formatted results."""
 
 
 # ── Model ───────────────────────────────────────────────────────────────────
@@ -108,16 +108,16 @@ def build_prompt(categories: list, locations: list, omit_topics: list) -> str:
 
     return f"""Today is {today}.
 
-Search the web for yesterday's most important news across these categories:
+Search the web for recent (preferably yesterday's) important news from the last 7 days, across these categories:
 {chr(10).join(f'- {cat}' for cat in categories)}
 
 Geographic focus: {', '.join(loc_descriptions)}
 {omit_block}
 Rules for the stories you select:
 - Every headline and summary MUST come directly from a real article found in search results. NEVER invent, speculate, or extrapolate.
-- If a search returns no relevant results for a category, try searching for recent relevant stories from the last 7 days. If there are still no results, skip that category rather than fabricating a story.
+- If a search returns no relevant results for a category, skip that category rather than fabricating a story.
 
-Return exactly 3 stories. Each story is two lines: a **bold** headline, then a plain 1-2 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
+Return exactly 3 stories. Important: Each story must be two lines: a **bold** headline, then a plain 1-2 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
 
 
 # ── Provider ─────────────────────────────────────────────────────────────────
