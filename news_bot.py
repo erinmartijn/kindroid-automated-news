@@ -48,7 +48,7 @@ When you have finished all your searches, your text response must contain ONLY t
 Output format — exactly 3 stories, with one blank line between each:
 
 **Headline text here**
-One to two sentence summary here.
+Two to three sentence summary here.
 
 Output rules:
 - Do NOT write any preamble, transition, or closing remark of any kind
@@ -117,7 +117,7 @@ Rules for the stories you select:
 - Every headline and summary MUST come directly from a real article found in search results. NEVER invent, speculate, or extrapolate.
 - If a search returns no relevant results for a category, skip that category rather than fabricating a story.
 
-Return exactly 3 stories. Important: Each story must be two lines: a **bold** headline, then a plain 1-2 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
+Return exactly 3 stories. Important: Each story must be two lines: a **bold** headline, then a plain 2-3 sentence summary. One blank line between stories. No narration, no numbers, no bullets."""
 
 
 # ── Provider ─────────────────────────────────────────────────────────────────
